@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<title>Domino SSE Example Webapp</title>
+		<style>
+			html, body {
+				padding: 0;
+				margin: 0;
+			}
+			body {
+				display: grid;
+				height: 100vh;
+				grid-template-areas: "message"
+				                     "output";
+				
+				grid-template-rows: 50px auto;
+			}
+			#output {
+				grid-area: output;
+				background-color: rgb(50, 50, 50);
+				color: white;
+				font-size: 12px;
+				font-family: "Consolas", monospace;
+				margin: 0;
+				overflow: auto;
+				white-space: pre-wrap;
+			}
+			#message {
+				grid-area: message;
+				overflow: auto;
+				background-color: white;
+				color: black;
+				display: block;
+				font-size: 16px;
+				line-height: 16px;
+				padding: 20px;
+				margin: 0;
+				font-family: "Consolas", monospace;
+			}
+		</style>
+		<script>
+			function sendMessage() {
+				const cmd = document.getElementById("message").value;
+				document.getElementById("message").value = "";
+				fetch("api/time", {
+					method: "POST",
+					body: cmd
+				});
+				return false;
+			}
+			function appendLogLine(line) {
+				const output = document.getElementById("output");
+				output.innerText += line + "\n";
+				output.scrollTop = output.scrollHeight;
+			}
+			function subscribe() {
+				const eventSource = new EventSource("api/time");
+				eventSource.addEventListener("timeline",  (event) => {
+					console.log("received", event);
+					appendLogLine(event.data);
+				});
+				eventSource.onerror = function (err) {
+					console.error("EventSource failed:", err);
+				};
+			}
+			
+			window.addEventListener("load", () => subscribe());
+		</script>
+	</head>
+	<body>
+		<pre id="output"></pre>
+		
+		<input id="message" onKeyPress="event.keyCode == 13 ? sendMessage() : true" placeholder="Type and hit Enter"/>
+	</body>
+</html>
