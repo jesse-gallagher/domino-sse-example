@@ -1,8 +1,8 @@
 package frostillicus.domino.sse.example.resources;
 
 import java.time.OffsetDateTime;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
 import javax.ws.rs.GET;
@@ -19,22 +19,25 @@ import frostillicus.domino.sse.example.RestEasyServlet;
 
 @Path("time")
 public class TimeStreamResource {
+	public static final TimeStreamResource instance = new TimeStreamResource();
+	
 	private SseBroadcaster sseBroadcaster;
 	private Sse sse;
 	
-	private BlockingQueue<String> messageQueue = new ArrayBlockingQueue<>(50);
-
-	@Context
-	public void setSse(Sse sse) {
-		this.sse = sse;
-		this.sseBroadcaster = sse.newBroadcaster();
+	private BlockingQueue<String> messageQueue = new LinkedBlockingDeque<>(50);
+	
+	public TimeStreamResource() {
+		// Spawn the threads at construction to avoid trouble with multiple setSse calls
 		
 		// Spawn a thread to pass messages to listeners
 		RestEasyServlet.executor.submit(() -> {
 			try {
 				String message;
 				while((message = messageQueue.take()) != null) {
-					this.sseBroadcaster.broadcast(this.sse.newEvent("timeline", message)); //$NON-NLS-1$
+					// The producer below may send a message before setSse is called the first time
+					if(this.sseBroadcaster != null) {
+						this.sseBroadcaster.broadcast(this.sse.newEvent("timeline", message)); //$NON-NLS-1$
+					}
 				}
 			} catch(InterruptedException e) {
 				// Then we're shutting down
@@ -48,18 +51,21 @@ public class TimeStreamResource {
 			try {
 				while(true) {
 					String eventContent = "- At the tone, the Domino time will be " + OffsetDateTime.now();
-					messageQueue.add(eventContent);
+					messageQueue.offer(eventContent);
 					
 					// Note: any sleeping should be short enough that it doesn't block HTTP restart
 					TimeUnit.SECONDS.sleep(10);
 				}
 			} catch(InterruptedException e) {
 				// Then we're shutting down
-			} finally {
-				this.sseBroadcaster.close();
 			}
 		});
-		
+	}
+
+	@Context
+	public void setSse(Sse sse) {
+		this.sse = sse;
+		this.sseBroadcaster = sse.newBroadcaster();
 	}
 	
 	@GET
@@ -71,7 +77,7 @@ public class TimeStreamResource {
 	@POST
 	@Produces(MediaType.TEXT_PLAIN)
 	public String sendMessage(String message) throws InterruptedException {
-		messageQueue.add(message);
+		messageQueue.offer(message);
 		return "Received message";
 	}
 }

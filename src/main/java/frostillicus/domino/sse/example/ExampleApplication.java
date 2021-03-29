@@ -13,7 +13,7 @@ public class ExampleApplication extends Application {
 	public Set<Object> getSingletons() {
 		// Use a singleton of the resource since we want a shared queue
 		return Stream.of(
-			new TimeStreamResource()
+			TimeStreamResource.instance
 		).collect(Collectors.toSet());
 	}
 }
